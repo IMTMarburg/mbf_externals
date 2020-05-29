@@ -11,6 +11,7 @@ from pathlib import Path
 import time
 import stat
 import os
+import json
 
 
 class PrebuildFunctionInvariantFileStoredExploding(ppg.FunctionInvariant):
@@ -19,43 +20,74 @@ class PrebuildFunctionInvariantFileStoredExploding(ppg.FunctionInvariant):
         super().__init__(storage_filename, func)
 
     @classmethod
-    def hash_function(cls, function, use_old_style=False):
-        if hasattr(function, "im_func") and "cyfunction" in repr(function.im_func):
-            invariant = cls.get_cython_source(function)  # pragma: no cover
-        else:
-            if use_old_style:
-                invariant = cls.dis_code(
-                    function.__code__, function, version_info=(3, 6, 1)
-                )
-            else:
-                invariant = cls.dis_code(function.__code__, function)
-        return invariant
+    def hash_function(cls, function):
+        new_source, new_funchash, new_closure = cls._hash_function(function)
+        return cls._compare_new_and_old(new_source, new_funchash, new_closure, False)
 
     def _get_invariant(self, old, all_invariant_stati):
-        invariant_hash = self.hash_function(self.function)
-        stf = Path(self.job_id)
-        if stf.exists():
+        stf = Path(
+            self.job_id
+        )  # the old file format - using just the function's dis-ed code.
+        stf2 = Path(self.job_id).with_name(
+            stf.name + "2"
+        )  # the new style, dict based storage just like FunctionInvariant after 0.190
+        new_source, new_func_hash, new_closure = self._hash_function(self.function)
+        if stf2.exists():
+            old_hash = json.loads(stf2.read_text())
+        elif stf.exists():
             old_hash = stf.read_text()
-            if old_hash != invariant_hash:
-                new_hash_old_style = self.hash_function(self.function, True)
-                if old_hash != new_hash_old_style:
-                    stf = Path(stf)
-                    try:
-                        of = stf.with_name(stf.name + ".changed")
-                        of.write_text(invariant_hash)
-                    except IOError:  # noqa: E722 pragma: no cover
-                        # fallback if the stf directory is not writeable.
-                        of = Path(stf.name + ".changed")  # pragma: no cover
-                        of.write_text(invariant_hash)  # pragma: no cover
-                    raise UpstreamChangedError(
-                        "Calculating function changed, bump version or rollback, or nuke job info ( %s )\n"
-                        "To compare, run \n"
-                        "icdiff %s %s"
-                        % (self.job_id, Path(self.job_id).absolute(), of.absolute())
-                    )
+            new_closure = ""
         else:
-            stf.write_text(invariant_hash)
-        return old  # signal no invariant change
+            new_value = self._compare_new_and_old(
+                new_source, new_func_hash, new_closure, False
+            )
+            stf2.write_text(json.dumps(new_value))
+            return old  # signal no change necessary.
+
+        try:
+            new_hash = self._compare_new_and_old(
+                new_source, new_func_hash, new_closure, old_hash
+            )
+            if new_hash != old_hash:
+                self.complain_about_hash_changes(new_hash)
+            else:
+                return old
+        except ppg.NothingChanged as e:
+            # we accept the stuff there as no change.
+            # and we write out the new value, because it might be a format change.
+            try:
+                stf2.write_text(json.dumps(e.new_value))
+            except OSError as e2:
+                if "Read-only file system" in str(e2):
+                    import warnings
+
+                    warnings.warn(
+                        "PrebuildFunctionInvariantFileStoredExploding: Could not update %s to newest version - read only file system"
+                        % stf
+                    )
+            raise e
+        raise NotImplementedError("Should not happen")
+
+    def complain_about_hash_changes(self, invariant_hash):
+        stf = Path(self.job_id)
+        try:
+            of = stf.with_name(stf.name + ".changed")
+            of.write_text(json.dumps(invariant_hash))
+        except IOError:  # noqa: E722 pragma: no cover
+            # fallback if the stf directory is not writeable.
+            of = Path(stf.name + ".changed")  # pragma: no cover
+            of.write_text(json.dumps(invariant_hash))  # pragma: no cover
+        raise UpstreamChangedError(
+            (
+                "Calculating function changed.\n"
+                "If you are actively working on it, you need to bump the version:\n"
+                "If not, you need to figure out what's causing the change.\n"
+                "Do not nuke the job info (%s) light heartedly\n"
+                "To compare, run \n"
+                "icdiff %s %s"
+            )
+            % (self.job_id, Path(self.job_id).absolute(), of.absolute())
+        )
 
 
 class _PrebuildFileInvariantsExploding(ppg.MultiFileInvariant):
@@ -235,7 +267,7 @@ class PrebuildManager:
                     result[v.name] = v
         return result
 
-    def prebuild(
+    def prebuild(  # noqa: C901
         self,
         name,
         version,
@@ -275,13 +307,29 @@ class PrebuildManager:
                 ]
             )
             ok_versions = []
-            calculating_function_md5_sum = PrebuildFunctionInvariantFileStoredExploding.hash_function(
-                calculating_function
-            )
+
+            (
+                new_source,
+                new_funchash,
+                new_closure,
+            ) = ppg.FunctionInvariant._hash_function(calculating_function)
+
             for v, p in acceptable_versions:
                 func_md5sum_path = p / "mbf_func.md5sum"
-                func_md5sum = func_md5sum_path.read_text()
-                if func_md5sum == calculating_function_md5_sum:
+                func_md5sum_path2 = p / "mbf_func.md5sum2"
+                try:
+                    func_md5sum = json.loads(func_md5sum_path2.read_text())
+                except OSError:
+                    func_md5sum = func_md5sum_path.read_text()
+                ok = False
+                try:
+                    new = ppg.FunctionInvariant._compare_new_and_old(
+                        new_source, new_funchash, new_closure, func_md5sum
+                    )
+                    ok = False
+                except ppg.NothingChanged:
+                    ok = True
+                if ok:
                     ok_versions.append((v, p))
 
             if ok_versions:
