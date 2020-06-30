@@ -246,7 +246,9 @@ class Salmon(ExternalAlgorithm):
             (output / "sentinel.txt").write_text("done")
 
         job = ppg.FileGeneratingJob(output / "sentinel.txt", run_quant).depends_on(
-            genome.build_index(self), lane.prepare_input()
+            genome.build_index(self),
+            lane.prepare_input(),
+            ppg.FunctionInvariant("Salmon.run_quant", Salmon.run_quant),
         )
         return job
 
@@ -259,14 +261,18 @@ class Salmon(ExternalAlgorithm):
         cmd = ["quant", "-i", str(index_path / "index"), "-l", libtype]
         if gene_level:
             cmd.extend(["-g", str(index_path / "gene_transcript.mapping")])
-        if len(aligner_input) == 1:
+        if lane.pairing == "single":
             cmd.extend(["-r", str(aligner_input[0])])
-        elif len(aligner_input) == 2:
+        elif lane.pairing == "paired":
             cmd.extend(["-1", str(aligner_input[0]), "-2", str(aligner_input[1])])
+        elif lane.pairing == "only_first":
+            cmd.extend(["-r", str(aligner_input[0])])
+        elif lane.pairing == "only_second":
+            cmd.extend(["-r", str(aligner_input[1])])
+        elif lane.pairing == "paired_as_single":
+            cmd.extend(["-r", str(aligner_input[0]) + " " + str(aligner_input[1])])
         else:
-            raise ValueError(
-                f"Something's wrong with the alinger input: {aligner_input}"
-            )
+            raise ValueError("Could not understand pairing mode: %s" % lane.pairing)
         cmd.extend(
             ["--validateMappings", "-o", str(output_path),]
         )
