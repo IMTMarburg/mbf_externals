@@ -238,7 +238,7 @@ class Salmon(ExternalAlgorithm):
     def run_quant_on_raw_lane(
         self, lane, genome, libtype, options=None, gene_level=False
     ):
-        output = Path(f"results/{self.name}/quant/") / lane.name
+        output = Path(f"results/{self.name}/") / lane.genome.name / lane.name
 
         def run_quant():
             output.mkdir(exist_ok=True, parents=True)
