@@ -13,7 +13,7 @@ class Salmon(ExternalAlgorithm):
         self.accepted_biotypes = accepted_biotypes
         super().__init__(version, store)
 
-    latest_version = "1.0.0"
+    latest_version = "1.3.0"
 
     @property
     def name(self):
@@ -202,7 +202,7 @@ class Salmon(ExternalAlgorithm):
 
         self.get_run_func(output_path, cmd)()
 
-    def run_alevin_on_sample(self, lane, genome, method):
+    def run_alevin_on_raw_lane(self, lane, genome, method):
         output = Path("results/alevin/") / lane.name
 
         def run_alevin():
@@ -278,7 +278,8 @@ class Salmon(ExternalAlgorithm):
         )
         if options is not None:
             for key in options:
-                cmd.extend([key, options[key]])
-        print(" ".join(cmd))
-        print(self.path)
+                if options[key] is not None:
+                    cmd.extend([key, options[key]])
+                else:
+                    cmd.append(key)
         self.get_run_func(output_path, cmd)()
