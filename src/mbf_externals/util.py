@@ -264,3 +264,33 @@ def download_mercurial_update_and_zip(url, changeset, target_filename):
         subprocess.check_call(["hg", "clone", url, str(tmpdir.absolute())])
         subprocess.check_call(["hg", "up", "-r", changeset], cwd=tmpdir)
         reproducible_tar(target_filename.absolute(), "./", cwd=tmpdir)
+
+
+def download_tar_bz2_and_turn_into_tar_gzip(url, target_filename, version, chmod_x_files=[], make=True):
+    """Download a tar.bz2 archive and turn it into the correct tar.gzip
+    """
+
+    import tempfile
+    import subprocess
+    from .externals import reproducible_tar
+    import tarfile
+
+    if isinstance(chmod_x_files, str):  # pragma: no cover
+        chmod_x_files = [chmod_x_files]
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmpdir = Path(tmpdir)
+        with (tmpdir / "source.tar.bz2").open("wb") as archive_file:
+            download_file(url, archive_file)
+
+        with tarfile.open(archive_file.name, "r") as zip_ref:
+            zip_ref.extractall(tmpdir / "target")
+        for fn in chmod_x_files:
+            subprocess.check_call(
+                ["chmod", "+x", str(tmpdir.absolute() / "target" / fn)]
+            )
+        if make:
+            import os
+            wd = [x for x in (tmpdir.absolute() / "target").iterdir()][0]
+            subprocess.check_call(["make"], cwd=wd)
+        reproducible_tar(target_filename.absolute(), "./", cwd=tmpdir / "target")
