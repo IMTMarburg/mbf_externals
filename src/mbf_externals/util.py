@@ -1,5 +1,4 @@
 import functools
-import natsort
 from pathlib import Path
 
 
@@ -45,6 +44,8 @@ def sort_versions(versions):
         Sorts like this:
             ['1.1', '1.2', '1.2alpha', '1.2beta1', '1.2beta2', '1.2rc1', '1.2.1', '1.3']
     """
+    import natsort
+
     return natsort.natsorted(
         versions,
         key=lambda x: x.replace(".", "~")

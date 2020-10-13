@@ -289,7 +289,7 @@ class ExternalAlgorithmStore:
 
     def unpack_version(self, algorithm_name, version):
         if not version in self.get_available_versions(algorithm_name):
-            raise ValueError("No such version")
+            raise ValueError(f"No such version {algorithm_name} {version}")
         target_path = self.get_unpacked_path(algorithm_name, version)
         sentinel = target_path / "unpack_done.txt"
         if sentinel.exists():
