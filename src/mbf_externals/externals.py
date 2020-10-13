@@ -192,7 +192,7 @@ class ExternalAlgorithm(ABC):
                     arguments,
                 )
             ]
-            cmd_out.write_text(repr(cmd))
+            cmd_out.write_text(" ".join(cmd))
             start_time = time.time()
             print(" ".join(cmd))
             p = subprocess.Popen(cmd, stdout=op_stdout, stderr=op_stderr, cwd=cwd)

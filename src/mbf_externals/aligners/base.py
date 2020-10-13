@@ -57,6 +57,8 @@ class Aligner(ExternalAlgorithm):
         output_fileprefix = Path(output_fileprefix)
         output_fileprefix.mkdir(parents=True, exist_ok=True)
         func = self.build_index_func(fasta_files, gtf_input_filename, output_fileprefix)
+        print(func)
+        print(func.__code__)
         func()
 
     def get_index_version_range(self):  # pragma: no cover
