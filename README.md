@@ -1,9 +1,6 @@
 # mbf_externals
 
-| Build status: | [![Build
-Status](https://travis-ci.com/TyberiusPrime/mbf_externals.svg?branch=master)](https://travis-ci.com/TyberiusPrime/mbf_externals)|
-|---------------|-----------------------------------------------------------------------------|
-| Documentation | https://mbf_externals.readthedocs.io/en/latest/
+Support for external algorithms in pypipegraphs
 
-support for external algorithms
 
+Part of the mbf_* suite from https://github.com/IMTMarburg

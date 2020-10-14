@@ -8,8 +8,8 @@ PAPER         =
 BUILDDIR      = _build
 AUTODOCDIR    = api
 AUTODOCBUILD  = sphinx-apidoc
-PROJECT       = mbf_plotnine
-MODULEDIR     = ../src/mbf_plotnine
+PROJECT       = mbf_externals
+MODULEDIR     = ../src/mbf_externals
 
 # User-friendly check for sphinx-build
 ifeq ($(shell which $(SPHINXBUILD) >/dev/null 2>&1; echo $?), 1)
