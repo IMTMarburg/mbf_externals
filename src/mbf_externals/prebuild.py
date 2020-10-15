@@ -143,7 +143,7 @@ class _PrebuildFileInvariantsExploding(ppg.MultiFileInvariant):
             old_d = {x[0]: x[1:] for x in old}
             checksums_d = {x[0]: x[1:] for x in checksums}
             for fn in self.filenames:
-                if old_d[fn][2] != checksums_d[fn][2] and old_d[fn][2] is not None:
+                if fn in old_d and old_d[fn][2] != checksums_d[fn][2] and old_d[fn][2] is not None:
                     raise UpstreamChangedError(
                         """Upstream file changed for job, bump version or rollback.
 Job: %s
