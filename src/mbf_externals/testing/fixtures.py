@@ -3,20 +3,22 @@ from pathlib import Path
 import shutil
 
 
-@pytest.fixture(scope="class")
-def local_store():
-    from mbf_externals import ExternalAlgorithmStore, change_global_store
+def local_store(base_path):
+    @pytest.fixture(scope="class")
+    def inner():
+        from mbf_externals import ExternalAlgorithmStore, change_global_store
 
-    base = Path(__file__).parent.parent.parent.parent / "tests"
-    unpacked = base / "unpacked"
-    if unpacked.exists():  # pragma: no cover
-        shutil.rmtree(unpacked)
-    unpacked.mkdir()
-    store = ExternalAlgorithmStore(base / "zipped", unpacked, no_downloads=True)
-    change_global_store(store)
-    yield store
-    if unpacked.exists():
-        shutil.rmtree(unpacked)
+        #base = Path(__file__).parent.parent.parent.parent / "tests"
+        unpacked = base_path / "unpacked"
+        if unpacked.exists():  # pragma: no cover
+            shutil.rmtree(unpacked)
+        unpacked.mkdir()
+        store = ExternalAlgorithmStore(base_path / "zipped", unpacked, no_downloads=True)
+        change_global_store(store)
+        yield store
+        if unpacked.exists():
+            shutil.rmtree(unpacked)
+    return inner
 
 
 @pytest.fixture
