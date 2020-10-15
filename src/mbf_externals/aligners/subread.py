@@ -50,6 +50,8 @@ class Subread(Aligner):
             input_type,
             "-I",
             "%i" % parameters.get("indels_up_to", 5),
+            "-M",
+            "%i" % parameters.get("-M", 3),
             "-B",
             "%i" % parameters.get("max_mapping_locations", 1),
             "-i",
@@ -67,6 +69,10 @@ class Subread(Aligner):
             cmd.extend(("-R", str(Path(paired_end_filename).absolute())))
         if "max_mapping_locations" in parameters:  # pragma: no cover
             cmd.append("--multiMapping")
+        if "--sv" in parameters:
+            cmd.append("--sv")
+        if "-m" in parameters:
+            cmd.extend(["-m", parameters["-m"]])
 
         def remove_bai():
             # subread create broken bais where idxstat doesn't work.
@@ -135,3 +141,84 @@ class Subread(Aligner):
         for k in keys:
             result[k] = int(re.findall(f"{k} : (\\d+)", raw)[0])
         return result
+
+
+class Subjunc(Subread):
+    def __init__(self, version="_last_used", store=None):
+        super().__init__(version, store)
+
+    @property
+    def name(self):
+        return "Subjunc"
+
+    def _aligner_build_cmd(self, output_dir, ncores, arguments):
+        if "subjunc" in arguments[0]:
+            return arguments + ["-T", str(ncores)]
+        else:
+            return arguments
+
+    def align_job(
+        self,
+        input_fastq,
+        paired_end_filename,
+        index_basename,
+        output_bam_filename,
+        parameters,
+    ):
+        output_bam_filename = Path(output_bam_filename)
+        cmd = [
+            "FROM_ALIGNER",
+            str(
+                self.path
+                / f"subread-{self.version}-Linux-x86_64"
+                / "bin"
+                / "subjunc"
+            ),
+            "-I",
+            "%i" % parameters.get("indels_up_to", 5),
+            "-M",
+            "%i" % parameters.get("-M", 3),
+            "-B",
+            "%i" % parameters.get("max_mapping_locations", 1),
+            "-i",
+            (Path(index_basename) / "subread_index").absolute(),
+            "-r",
+            Path(input_fastq).absolute(),
+            "-o",
+            output_bam_filename.absolute(),
+        ]
+        if "keepReadOrder" in parameters:  # pragma: no cover
+            cmd.append("--keepReadOrder")
+        else:
+            cmd.append("--sortReadsByCoordinates")
+        if paired_end_filename:
+            cmd.extend(("-R", str(Path(paired_end_filename).absolute())))
+        if "max_mapping_locations" in parameters:  # pragma: no cover
+            cmd.append("--multiMapping")
+        if "-m" in parameters:
+            cmd.extend(["-m", parameters["-m"]])
+        if "--complexIndels" in parameters:
+            cmd.append("--complexIndels")
+
+        def remove_bai():
+            # subread create broken bais where idxstat doesn't work.
+            # but the mbf_aligned.lanes.AlignedSample will recreate it.
+            # so it's ok if we simply throw it away here.
+            bai_name = output_bam_filename.with_name(output_bam_filename.name + ".bai")
+            if bai_name.exists():
+                bai_name.unlink()
+
+        job = self.run(
+            Path(output_bam_filename).parent,
+            cmd,
+            additional_files_created=[
+                output_bam_filename,
+                # subread create broken bais where idxstat doesn't work.
+                # output_bam_filename.with_name(output_bam_filename.name + ".bai"),
+            ],
+            call_afterwards=remove_bai,
+        )
+        job.depends_on(
+            ppg.ParameterInvariant(output_bam_filename, sorted(parameters.items()))
+        )
+        return job
